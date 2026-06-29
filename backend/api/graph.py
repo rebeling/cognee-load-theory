@@ -1,23 +1,17 @@
-"""Graph API (stub).
+"""Graph API.
 
-Builds a trivial graph: one node per stored item, chained by insertion order.
-Replace with real Cognee knowledge graph later.
+Returns the knowledge graph from the active store. Cognee returns the real
+entity/relation graph; the in-memory stub returns a trivial item chain.
 """
 
 from fastapi import APIRouter
 
 from backend.core.memory_store import store
-from backend.core.models import GraphEdge, GraphNode, GraphResponse
+from backend.core.models import GraphResponse
 
-router = APIRouter(prefix="/graph", tags=["graph"])
+router = APIRouter(prefix="/cognee-graph", tags=["cognee-graph"])
 
 
 @router.get("", response_model=GraphResponse)
 def get_graph() -> GraphResponse:
-    items = store.all()
-    nodes = [GraphNode(id=i.id, label=i.text[:40]) for i in items]
-    edges = [
-        GraphEdge(source=items[n].id, target=items[n + 1].id)
-        for n in range(len(items) - 1)
-    ]
-    return GraphResponse(nodes=nodes, edges=edges)
+    return store.graph()

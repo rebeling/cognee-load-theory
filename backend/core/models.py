@@ -10,7 +10,8 @@ class IngestRequest(BaseModel):
 
 
 class MemoryItem(BaseModel):
-    id: int
+    # int for the in-memory stub; str (uuid/name) for Cognee-backed items.
+    id: int | str
     text: str
 
 
@@ -22,20 +23,28 @@ class RecallRequest(BaseModel):
     query: str
 
 
+class RecallAnswer(BaseModel):
+    query: str
+    answer: str
+
+
 class Task(BaseModel):
-    id: int
+    id: int | str
     title: str
-    source_id: int
+    source_id: int | str
 
 
 class GraphNode(BaseModel):
-    id: int
+    id: int | str
     label: str
+    type: str = ""
+    properties: dict = {}
 
 
 class GraphEdge(BaseModel):
-    source: int
-    target: int
+    source: int | str
+    target: int | str
+    label: str = ""
 
 
 class GraphResponse(BaseModel):
