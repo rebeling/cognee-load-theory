@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>cognee-load-theory</title>
+  <title>Cognee Load Theory</title>
   <link rel="stylesheet" href="/style.css" />
 </head>
 <body>
@@ -16,15 +16,69 @@
     </div>
   </nav>
 
-  <section class="hero">
-    <h1 class="title">cognee-load-theory</h1>
-    <p>
-      Ingest text, store it in memory, extract tasks, build a graph, and read a
-      load score &mdash; all served from one FastAPI process. The backend is the
-      source of truth; the frontend is a thin viewer over the <code>/api</code>
-      endpoints.
+  <article class="prose">
+    <h1>Cognee Load Theory</h1>
+
+    <p class="lead">
+      Cognee Load Theory turns invisible family coordination into a shared,
+      visual memory space &mdash; so the whole Wolfpack can finally see the load,
+      understand it, and reduce it together.
     </p>
-    <a class="btn" href="/viewer.html">Open the viewer &rarr;</a>
-  </section>
+
+    <p>
+      In <em>The Hangover</em>, the Wolfpack loses Doug and has to reconstruct
+      the night from scattered clues. In family life, the problem is different:
+      the context is usually not lost &mdash; someone is holding it. Appointments,
+      school messages, groceries, bills, reminders, open decisions, emotional
+      tasks, and unfinished todos are spread across chats, calendars, notes,
+      documents, and people&rsquo;s heads. Keeping all of that connected,
+      prioritized, and up to date is mental load.
+    </p>
+
+    <p>
+      Our project makes this load visible. We use Cognee as a shared memory
+      system for family context and turn its graph into an interactive mind
+      space: a place where tasks, appointments, reminders, dependencies, and
+      responsibilities can be explored, reorganized, updated, archived, and acted
+      on. The goal is not just to remember more, but to make daily-life
+      coordination visible enough that the family can improve it together.
+    </p>
+
+    <h2>The Theory</h2>
+
+    <p>
+      Mental load increases when daily-life context is hidden, fragmented, and
+      carried internally by individuals. It decreases when that context is
+      externalized into shared memory, visualized as a connected space, and
+      transformed into actionable tasks that the whole family can understand and
+      manage together.
+    </p>
+
+    <h2>Quickstart</h2>
+
+    <p>Requires Python 3.14 and <a href="https://docs.astral.sh/uv/">uv</a>.</p>
+
+    <pre><code>uv sync          # install dependencies
+uv run fastapi dev   # start dev server with auto-reload</code></pre>
+
+    <p>
+      Open <a href="http://127.0.0.1:8000">http://127.0.0.1:8000</a> &mdash; the
+      frontend viewer. The JSON API lives under <code>/api</code> (e.g.
+      <code>GET /api/load</code>, <code>POST /api/ingest</code>). Interactive docs
+      at <a href="/docs">/docs</a>.
+    </p>
+
+    <h2>Layout</h2>
+
+    <ul>
+      <li><code>app/</code> &mdash; FastAPI entrypoint (<code>app.main:app</code>); wires the API + serves the frontend</li>
+      <li><code>backend/</code> &mdash; all business logic (<code>api/</code> routes, <code>core/</code> store + models)</li>
+      <li><code>frontend/</code> &mdash; static HTML/JS/CSS viewer, no business logic ...yet</li>
+    </ul>
+
+    <p>See <code>CLAUDE.md</code> for architecture details.</p>
+
+    <p><a class="btn" href="/viewer.html">Open the viewer &rarr;</a></p>
+  </article>
 </body>
 </html>
