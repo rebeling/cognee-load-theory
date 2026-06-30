@@ -1,0 +1,636 @@
+# Demo family: Mertens
+#
+# Brandenburg school year 2026/27 context:
+# The official MBJS schedule lists 2026-08-22 as the usual
+# Einschulungsveranstaltung and 2026-08-24 as the first school day.
+
+official_context:
+  school_year: "2026/27"
+  state: Brandenburg
+  country: Germany
+  source_authority: MBJS
+  usual_einschulungsveranstaltung: 2026-08-22
+  first_school_day: 2026-08-24
+  note: Exact ceremony time must be confirmed with the school.
+
+family:
+  id: family_mertens
+  family_name: Mertens
+  home:
+    city: Bernau bei Berlin
+    state: Brandenburg
+    country: Germany
+  members:
+    - id: vera_mertens
+      name: Vera Mertens
+      role: mother
+      date_of_birth: 1985-04-18
+
+    - id: christian_mertens
+      name: Christian Mertens
+      role: father
+      date_of_birth: 1982-11-02
+
+    - id: lara_mertens
+      name: Lara Mertens
+      role: daughter
+      date_of_birth: 2013-03-14
+      age: 13
+      school:
+        location: Biesenthal
+        grade: 7
+
+    - id: paul_mertens
+      name: Paul Mertens
+      role: son
+      date_of_birth: 2015-01-22
+      age: 11
+      school:
+        location: Biesenthal
+        grade: 5
+
+    - id: lila_mertens
+      name: Lila Mertens
+      role: daughter
+      date_of_birth: 2020-05-09
+      age: 6
+      school:
+        location: Biesenthal
+        status: starts_school_2026
+
+calendar_entries:
+  - id: event_einschulung_lila_mertens_2026
+    title: Einschulung Lila Mertens
+    person: Lila Mertens
+    date: 2026-08-22
+    start_time: "10:00"
+    end_time: "13:00"
+    location: Grundschule Biesenthal
+    from_home: Bernau bei Berlin
+    type: school_start
+    priority: high
+    status: planned
+    note: Exact ceremony time must be confirmed with the school.
+    related_people:
+      - Vera Mertens
+      - Christian Mertens
+      - Lara Mertens
+      - Paul Mertens
+      - Lila Mertens
+    hidden_mental_load:
+      - Confirm ceremony time with school
+      - Buy school bag
+      - Prepare Schultuete
+      - Plan route Bernau -> Biesenthal
+      - Organize family lunch
+      - Invite grandparents
+      - Prepare outfit
+      - Charge phone / camera
+      - Block both parents' calendars
+      - Check whether siblings need to attend school that day
+
+input_channels:
+  - id: channel_google_calendar
+    type: calendar
+    provider: google_calendar
+    label: Google Calendar
+    examples:
+      - Google Calendar event
+      - ICS import
+      - Manual calendar entry
+    example_input: "Einschulung Lila, 22.08.2026, 10:00, Grundschule Biesenthal"
+    likely_entities:
+      - Event
+      - Date
+      - Place
+      - Person
+    likely_inferences:
+      - high priority milestone
+      - travel planning needed
+      - parents should block time
+      - preparation tasks are likely missing
+
+  - id: channel_mail
+    type: mail
+    provider: gmail
+    label: Gmail / Mail
+    examples:
+      - Email from school
+      - Forwarded message from another parent
+      - Attachment notification
+    example_input: "Betreff: Einschulung Lila Mertens - bitte bestaetigen Sie die Teilnahme bis 15.08.2026."
+    likely_entities:
+      - Message
+      - Person
+      - School
+      - Deadline
+      - Task
+    likely_inferences:
+      - confirmation task is required
+      - deadline exists before event
+      - affects Lila
+      - parent owner may be missing
+
+  - id: channel_google_tasks
+    type: task_list
+    provider: google_tasks
+    label: Google Tasks
+    examples:
+      - Personal task
+      - Shared family task list item
+      - Reminder-backed task
+    example_input: "Schulranzen kaufen - Christian - due 2026-08-10"
+    likely_entities:
+      - Task
+      - Person
+      - DueDate
+      - Ownership
+    likely_inferences:
+      - Christian owns school bag task
+      - task belongs to school-start cluster
+      - task has due date before event
+
+  - id: channel_school_portal
+    type: school_message
+    provider: school_portal
+    label: School Portal
+    examples:
+      - PDF letter
+      - School portal message
+      - Uploaded school form
+    example_input: "Bitte bringen Sie zur Einschulung die Aufnahmebestaetigung und ein Passfoto mit."
+    likely_entities:
+      - Document
+      - Task
+      - School
+      - Deadline
+    likely_inferences:
+      - creates preparation task
+      - affects Lila
+      - needs owner
+      - may have due date before event
+
+  - id: channel_parent_chat
+    type: chat
+    provider: family_chat
+    label: Parent Chat
+    examples:
+      - WhatsApp-style family note
+      - App message
+      - Voice note transcript
+    example_input: "Christian kuemmert sich um den Schulranzen. Vera fragt morgen in der Schule wegen der Uhrzeit nach."
+    likely_entities:
+      - Person
+      - Task
+      - Ownership
+      - Reminder
+    likely_inferences:
+      - Christian owns school bag task
+      - Vera owns confirmation task
+      - reminder may be useful
+
+  - id: channel_manual_note
+    type: note
+    provider: mind_space
+    label: Manual Note
+    examples:
+      - Quick note
+      - Agent chat command
+      - Mind Space note
+    example_input: "Lila needs a sports bag for school."
+    likely_entities:
+      - Person
+      - Task
+      - Topic
+    likely_inferences:
+      - new school-related task
+      - affects Lila
+      - missing owner
+
+  - id: channel_voice_note
+    type: voice_transcript
+    provider: phone_transcription
+    label: Voice Note Transcript
+    examples:
+      - Voice memo
+      - Dictated reminder
+      - Transcribed car conversation
+    example_input: "Remember to ask whether Lara and Paul have school on Lila's Einschulung day."
+    likely_entities:
+      - Person
+      - Task
+      - School
+      - Event
+    likely_inferences:
+      - creates sibling schedule check task
+      - affects Lara and Paul
+      - missing owner
+
+  - id: channel_scanned_letter
+    type: document_scan
+    provider: paper_scan
+    label: Scanned Paper Letter
+    examples:
+      - OCR school letter
+      - Printed checklist
+      - Photo of paper note
+    example_input: "Zur Einschulung bitte mitbringen: Aufnahmebestaetigung, Passfoto, Federmappe."
+    likely_entities:
+      - Document
+      - Task
+      - SchoolSupply
+      - Event
+    likely_inferences:
+      - creates preparation checklist
+      - tasks may need owners
+      - source confidence may depend on OCR quality
+
+  - id: channel_mind_space_action
+    type: memory_action
+    provider: mind_space
+    label: Mind Space Action
+    examples:
+      - Drag task to person
+      - Mark done
+      - Create reminder
+      - Connect nodes
+    example_input: "Assign 'Buy school bag' to Christian"
+    likely_entities:
+      - MemoryAction
+      - Task
+      - Person
+    likely_inferences:
+      - ownership changed
+      - missing-owner warning resolved
+      - load cluster updated
+
+channel_source_records:
+  - id: source_google_calendar_001
+    channel_id: channel_google_calendar
+    channel_type: calendar
+    provider: google_calendar
+    source_ref: google_calendar:event:einschulung_lila_2026
+    received_at: "2026-06-01T08:30:00+02:00"
+    raw:
+      title: Einschulung Lila
+      starts_at: "2026-08-22T10:00:00+02:00"
+      ends_at: "2026-08-22T13:00:00+02:00"
+      location: Grundschule Biesenthal
+      description: Einschulung Lila, Grundschule Biesenthal. Uhrzeit bitte noch bestaetigen.
+      attendees:
+        - vera.mertens@example.invalid
+        - christian.mertens@example.invalid
+    normalized:
+      entities:
+        - Lila Mertens
+        - Grundschule Biesenthal
+      creates:
+        - event_einschulung_lila_mertens_2026
+        - task_confirm_ceremony_time
+      inferences:
+        - high priority milestone
+        - ceremony time needs confirmation
+        - both parents should block calendars
+
+  - id: source_gmail_school_001
+    channel_id: channel_mail
+    channel_type: mail
+    provider: gmail
+    source_ref: gmail:message:school_confirmation_001
+    received_at: "2026-07-20T14:12:00+02:00"
+    raw:
+      from: sekretariat@grundschule-biesenthal.example.invalid
+      to: vera.mertens@example.invalid
+      subject: Einschulung Lila Mertens - Rueckmeldung und Unterlagen
+      body: Bitte bestaetigen Sie die Teilnahme bis 15.08.2026 und bringen Sie Aufnahmebestaetigung sowie ein Passfoto mit.
+    normalized:
+      entities:
+        - Lila Mertens
+        - Grundschule Biesenthal
+      creates:
+        - task_confirm_attendance
+        - task_prepare_school_documents
+      updates:
+        - task_confirm_ceremony_time
+      due_dates:
+        - task: task_confirm_attendance
+          due: 2026-08-15
+      inferences:
+        - school documents are required before event
+        - Vera is likely recipient but ownership should be confirmed
+
+  - id: source_google_tasks_001
+    channel_id: channel_google_tasks
+    channel_type: task_list
+    provider: google_tasks
+    source_ref: google_tasks:list:family:task:school_bag
+    received_at: "2026-07-25T19:45:00+02:00"
+    raw:
+      title: Schulranzen kaufen
+      notes: Christian kuemmert sich darum.
+      due: 2026-08-10
+      status: needsAction
+      list: Family
+    normalized:
+      entities:
+        - Christian Mertens
+      creates:
+        - task_buy_school_bag
+      ownership:
+        - owner: Christian Mertens
+          task: task_buy_school_bag
+      due_dates:
+        - task: task_buy_school_bag
+          due: 2026-08-10
+      inferences:
+        - task belongs to school-start cluster
+        - ownership warning resolved for school bag task
+
+  - id: source_school_portal_001
+    channel_id: channel_school_portal
+    channel_type: school_message
+    provider: school_portal
+    source_ref: school_portal:message:einschulung_checklist
+    received_at: "2026-08-01T11:05:00+02:00"
+    raw:
+      title: Checkliste Einschulung
+      body: Bitte bringen Sie Aufnahmebestaetigung, Passfoto, Federmappe und Sportsachen mit.
+      attachments:
+        - einschulung_checkliste.pdf
+    normalized:
+      entities:
+        - Grundschule Biesenthal
+        - Lila Mertens
+      creates:
+        - task_prepare_school_documents
+        - task_buy_pencil_case
+        - task_pack_sports_bag
+      inferences:
+        - checklist expands preparation tasks
+        - new tasks need owners
+        - attachment should be retained as provenance
+
+  - id: source_parent_chat_001
+    channel_id: channel_parent_chat
+    channel_type: chat
+    provider: family_chat
+    source_ref: family_chat:thread:mertens:message:001
+    received_at: "2026-08-03T21:18:00+02:00"
+    raw:
+      sender: Christian Mertens
+      text: Christian handles the school bag. Vera confirms the time.
+    normalized:
+      entities:
+        - Christian Mertens
+        - Vera Mertens
+      updates:
+        - task_buy_school_bag
+        - task_confirm_ceremony_time
+      ownership:
+        - owner: Christian Mertens
+          task: task_buy_school_bag
+        - owner: Vera Mertens
+          task: task_confirm_ceremony_time
+      inferences:
+        - both mentioned tasks belong to school-start cluster
+        - reminder may be useful for ceremony confirmation
+
+  - id: source_manual_note_001
+    channel_id: channel_manual_note
+    channel_type: note
+    provider: mind_space
+    source_ref: mind_space:note:family_lunch_001
+    received_at: "2026-08-04T07:40:00+02:00"
+    raw:
+      text: Need to plan lunch after the ceremony.
+    normalized:
+      creates:
+        - task_organize_family_lunch
+      inferences:
+        - task belongs to family-event topic
+        - owner is missing
+        - depends on ceremony time and attendee count
+
+  - id: source_voice_note_001
+    channel_id: channel_voice_note
+    channel_type: voice_transcript
+    provider: phone_transcription
+    source_ref: voice_note:transcript:sibling_school_day
+    received_at: "2026-08-05T18:25:00+02:00"
+    raw:
+      transcript: Remember to ask whether Lara and Paul have school on Lila's Einschulung day.
+      language: en
+      confidence: 0.91
+    normalized:
+      entities:
+        - Lara Mertens
+        - Paul Mertens
+        - Lila Mertens
+      creates:
+        - task_check_sibling_school_schedule
+      inferences:
+        - task affects sibling attendance planning
+        - owner is missing
+        - source confidence is high enough to create draft task
+
+  - id: source_scanned_letter_001
+    channel_id: channel_scanned_letter
+    channel_type: document_scan
+    provider: paper_scan
+    source_ref: paper_scan:ocr:einschulung_letter_001
+    received_at: "2026-08-06T20:10:00+02:00"
+    raw:
+      file_name: einschulung-brief.jpg
+      ocr_text: "Zur Einschulung bitte mitbringen: Aufnahmebestaetigung, Passfoto, Federmappe."
+      ocr_confidence: 0.86
+    normalized:
+      creates:
+        - task_prepare_school_documents
+        - task_buy_pencil_case
+      inferences:
+        - OCR confidence is acceptable but should preserve original scan
+        - duplicate detection should merge document tasks from mail and portal
+
+  - id: source_mind_space_action_001
+    channel_id: channel_mind_space_action
+    channel_type: memory_action
+    provider: mind_space
+    source_ref: mind_space:action:assign_route_christian
+    received_at: "2026-08-08T09:00:00+02:00"
+    raw:
+      action: Assign route planning to Christian and remind him one week before.
+    normalized:
+      updates:
+        - task_plan_route
+      ownership:
+        - owner: Christian Mertens
+          task: task_plan_route
+      reminders:
+        - task: task_plan_route
+          remind_at: "2026-08-15T09:00:00+02:00"
+      inferences:
+        - missing-owner warning resolved
+        - reminder should be written as structured memory
+
+data_flow_example:
+  scattered_context:
+    google_calendar: "Einschulung Lila, 22.08.2026, Grundschule Biesenthal"
+    gmail: "Please confirm attendance by 15.08.2026 and bring documents."
+    google_tasks: "Schulranzen kaufen - Christian - due 2026-08-10"
+    school_portal: "Please bring documents, pencil case, and sports bag."
+    parent_chat: "Christian handles the school bag. Vera confirms the time."
+    manual_note: "Need to plan lunch after the ceremony."
+    voice_note: "Ask whether Lara and Paul have school that day."
+    scanned_letter: "OCR checklist: Aufnahmebestaetigung, Passfoto, Federmappe."
+
+  source_records:
+    - source_google_calendar_001
+    - source_gmail_school_001
+    - source_google_tasks_001
+    - source_school_portal_001
+    - source_parent_chat_001
+    - source_manual_note_001
+    - source_voice_note_001
+    - source_scanned_letter_001
+
+  enrichment:
+    detected_people:
+      - Lila Mertens
+      - Vera Mertens
+      - Christian Mertens
+    detected_places:
+      - Bernau bei Berlin
+      - Biesenthal
+      - Grundschule Biesenthal
+    detected_events:
+      - Einschulung Lila Mertens
+    detected_tasks:
+      - title: Confirm ceremony time
+        owner: Vera Mertens
+      - title: Prepare school documents
+        owner: null
+        needs_owner: true
+      - title: Buy school bag
+        owner: Christian Mertens
+      - title: Plan route
+        owner: null
+        needs_owner: true
+      - title: Organize family lunch
+        owner: null
+        needs_owner: true
+      - title: Confirm attendance
+        owner: null
+        needs_owner: true
+        due: 2026-08-15
+      - title: Buy pencil case
+        owner: null
+        needs_owner: true
+      - title: Pack sports bag
+        owner: null
+        needs_owner: true
+      - title: Check sibling school schedule
+        owner: null
+        needs_owner: true
+    dependencies:
+      - source: School start
+        depends_on: School documents
+      - source: School start
+        depends_on: Ceremony time confirmation
+      - source: Travel planning
+        depends_on: Location and time
+
+  coordination_graph:
+    edges:
+      - source: Lila
+        relation: has_event
+        target: Einschulung
+      - source: Einschulung
+        relation: takes_place_at
+        target: Grundschule Biesenthal
+      - source: Einschulung
+        relation: creates_task
+        target: Confirm ceremony time
+      - source: Einschulung
+        relation: creates_task
+        target: Buy school bag
+      - source: Einschulung
+        relation: creates_task
+        target: Plan route
+      - source: Vera
+        relation: owns
+        target: Confirm ceremony time
+      - source: Christian
+        relation: owns
+        target: Buy school bag
+      - source: Plan route
+        relation: needs_owner
+        target: true
+      - source: Organize family lunch
+        relation: needs_owner
+        target: true
+
+  mind_space_visualization:
+    - Lila is the center of the school-start cluster.
+    - Vera and Christian are connected through owned tasks.
+    - Unassigned tasks float as open loops.
+    - The school-start cluster is high priority.
+    - Travel-related nodes connect Bernau and Biesenthal.
+
+  user_action:
+    input: "Assign route planning to Christian and remind him one week before."
+    memory_update:
+      - source: Christian
+        relation: owns
+        target: Plan route
+      - source: Plan route
+        relation: has_reminder
+        target: "2026-08-15T09:00:00+02:00"
+    change_report:
+      - Christian now owns route planning.
+      - Missing-owner warning removed.
+      - Reminder scheduled.
+
+change_set_pipeline:
+  intent: "Assign route planning to Christian and remind him one week before."
+  steps:
+    - Extract intended change from user action.
+    - Compare intended change with existing memory.
+    - Create MemoryChangeSet.
+    - Apply MemoryChangeSet to Cognee.
+    - Report what changed.
+
+example_memory_change_sets:
+  - change_set_id: chg_school_start_lila_001
+    family_id: family_mertens
+    source: combined_ingestion
+    status: applied
+    summary: Created school-start coordination cluster for Lila Mertens.
+    created:
+      - type: event
+        id: event_einschulung_lila_mertens_2026
+        label: Einschulung Lila Mertens
+      - type: task
+        id: task_confirm_ceremony_time
+        label: Confirm ceremony time with school
+      - type: task
+        id: task_buy_school_bag
+        label: Buy school bag
+      - type: task
+        id: task_plan_route
+        label: Plan route Bernau to Biesenthal
+    relationships_added:
+      - from: Lila Mertens
+        relation: affected_by
+        to: Einschulung Lila Mertens
+      - from: Vera Mertens
+        relation: owns
+        to: Confirm ceremony time with school
+      - from: Christian Mertens
+        relation: owns
+        to: Buy school bag
+      - from: Einschulung Lila Mertens
+        relation: creates_task
+        to: Plan route Bernau to Biesenthal
+    needs_confirmation:
+      - type: event_time_confirmation
+        message: The exact ceremony time is assumed as 10:00 but must be confirmed with the school.
