@@ -29,9 +29,23 @@ class CogneeStore:
             timeout=60.0,
         )
 
+    @property
+    def dataset(self) -> str:
+        return self._dataset
+
     def _post(self, path: str, json: dict) -> object:
         try:
             res = self._client.post(path, json=json)
+            res.raise_for_status()
+        except httpx.HTTPError as exc:
+            raise CogneeError(f"Cognee POST {path} failed: {exc}") from exc
+        return res.json()
+
+    def _post_multipart(
+        self, path: str, data: dict, files: dict, timeout: float | None = None
+    ) -> object:
+        try:
+            res = self._client.post(path, data=data, files=files, timeout=timeout)
             res.raise_for_status()
         except httpx.HTTPError as exc:
             raise CogneeError(f"Cognee POST {path} failed: {exc}") from exc
@@ -58,6 +72,36 @@ class CogneeStore:
         )
         self._post("/api/v1/cognify", {"datasets": [self._dataset]})
         return MemoryItem(id=self._dataset, text=text)
+
+    def upload_ontology(
+        self, key: str, owl_bytes: bytes, description: str | None = None
+    ) -> str:
+        """Upload an OWL ontology under ``key`` (idempotent). Returns the key."""
+        existing = self._get("/api/v1/ontologies") or {}
+        if isinstance(existing, dict) and key in existing:
+            return key
+        data = {"ontology_key": key}
+        if description is not None:
+            data["description"] = description
+        files = {"ontology_file": (f"{key}.owl", owl_bytes, "application/rdf+xml")}
+        self._post_multipart("/api/v1/ontologies", data, files)
+        return key
+
+    def remember_file(
+        self, content: bytes, filename: str, ontology_key: str | None = None
+    ) -> dict:
+        """Ingest a file and build the graph in one call, grounded on an ontology.
+
+        Uses ``/api/v1/remember`` (ingest + cognify). The ``ontology_key`` form
+        field is what actually grounds entity extraction against the ontology —
+        ``cognify``'s ``ontologyKey`` does not (it leaves ``ontology_valid`` false).
+        """
+        data = {"datasetName": self._dataset}
+        if ontology_key is not None:
+            data["ontology_key"] = ontology_key
+        files = {"data": (filename, content, "text/plain")}
+        result = self._post_multipart("/api/v1/remember", data, files, timeout=300.0)
+        return result if isinstance(result, dict) else {"result": result}
 
     def recall(self, query: str) -> list[MemoryItem]:
         ds_id = self._dataset_id()
