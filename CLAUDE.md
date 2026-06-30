@@ -2,6 +2,9 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+> **NO TESTS IN MVP.** Do not write a test suite, test files, or test scaffolding.
+> Verify changes by running the app / hitting endpoints, not by adding tests.
+
 ## Commands
 
 - Install deps: `uv sync` (backend) / `cd frontend && npm install` (frontend); or `make install` for both.
