@@ -16,6 +16,8 @@ router = APIRouter(prefix="/tasks", tags=["tasks"])
 def list_tasks() -> list[Task]:
     tasks: list[Task] = []
     for item in store.all():
-        title = item.text.strip().splitlines()[0][:80] if item.text.strip() else "(empty)"
+        title = (
+            item.text.strip().splitlines()[0][:80] if item.text.strip() else "(empty)"
+        )
         tasks.append(Task(id=item.id, title=title, source_id=item.id))
     return tasks

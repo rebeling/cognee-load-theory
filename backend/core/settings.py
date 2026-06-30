@@ -21,9 +21,20 @@ class Settings(BaseSettings):
     # Dataset all ingested text is grouped under. Read from env COGNEE_BRAIN.
     cognee_dataset: str = Field(default="ontology_dataset", alias="COGNEE_BRAIN")
 
+    # Shared secret the frontend must send as X-API-Key on /api/* calls.
+    # When unset, auth is open — keeps the public repo runnable without secrets.
+    api_key: str | None = None
+
+    # Expose /docs, /redoc, /openapi.json. Default off; enable in dev.
+    docs_enabled: bool = False
+
     @property
     def cognee_enabled(self) -> bool:
         return bool(self.cognee_api_key and self.cognee_api_base_url)
+
+    @property
+    def auth_enabled(self) -> bool:
+        return bool(self.api_key)
 
 
 settings = Settings()

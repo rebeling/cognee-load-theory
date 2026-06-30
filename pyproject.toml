@@ -1,7 +1,7 @@
 [project]
 name = "cognee-load-theory"
-version = "0.1.0"
-description = "Add your description here"
+version = "0.2.0"
+description = "FastAPI JSON API turning family context into shared Cognee memory, visualized as a walkable mind space."
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
@@ -13,3 +13,8 @@ dependencies = [
 
 [tool.fastapi]
 entrypoint = "app.main:app"
+
+[dependency-groups]
+dev = [
+    "ruff>=0.15.20",
+]

@@ -74,7 +74,11 @@ class CogneeStore:
     def recall_answer(self, query: str) -> str:
         results = self._post(
             "/api/v1/search",
-            {"query": query, "searchType": "GRAPH_COMPLETION", "datasets": [self._dataset]},
+            {
+                "query": query,
+                "searchType": "GRAPH_COMPLETION",
+                "datasets": [self._dataset],
+            },
         )
         if isinstance(results, list) and results:
             first = results[0]
