@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 import yaml
 
 if TYPE_CHECKING:
-    from backend.core.cognee_store import CogneeStore
+    from backend.core.memory_store import CogneeStore
 
 DATA_DIR = Path(__file__).parents[2] / "data"
 ONTOLOGY_FILE = DATA_DIR / "family-coordination.owl"
@@ -192,3 +192,21 @@ def seed_demo(store: CogneeStore) -> dict:
         "status": result.get("status"),
         "items_processed": result.get("items_processed"),
     }
+
+
+def main() -> None:
+    """Seed the active store in-process (used by ``make seed``)."""
+    import json
+
+    from backend.core.memory_store import CogneeStore, store
+
+    if not isinstance(store, CogneeStore):
+        raise SystemExit(
+            "Active store is not Cognee-backed. Set COGNEE_MODE=local (with "
+            "LLM_API_KEY) or configure cloud keys, then rerun."
+        )
+    print(json.dumps(seed_demo(store), indent=2))
+
+
+if __name__ == "__main__":
+    main()

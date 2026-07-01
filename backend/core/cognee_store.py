@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import httpx
 
+from backend.core.memory_store import CogneeStore
 from backend.core.models import GraphEdge, GraphNode, GraphResponse, MemoryItem
 from backend.core.settings import settings
 
@@ -17,7 +18,9 @@ class CogneeError(RuntimeError):
     """Raised when the Cognee API returns an error."""
 
 
-class CogneeStore:
+class CogneeCloudStore(CogneeStore):
+    """Cognee backend over the cloud REST API (httpx)."""
+
     def __init__(self) -> None:
         if not settings.cognee_enabled:
             raise CogneeError("Cognee is not configured (missing API key / base URL).")

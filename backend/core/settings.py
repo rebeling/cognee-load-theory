@@ -6,12 +6,21 @@ store so it still boots (and the public repo stays runnable without secrets).
 
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    # "cloud" (default) → CogneeCloudStore over REST (needs the keys below).
+    # "local" → in-process cognee lib (no cloud secrets; reads its own
+    # LLM_*/EMBEDDING_* env vars per https://docs.cognee.ai).
+    cognee_mode: Literal["cloud", "local"] = Field(
+        default="cloud", alias="COGNEE_MODE"
+    )
 
     cognee_api_key: str | None = None
     cognee_api_base_url: str | None = None
