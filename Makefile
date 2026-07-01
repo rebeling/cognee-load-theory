@@ -1,12 +1,18 @@
-.PHONY: dev backend frontend install seed ruff
+.PHONY: dev dev-win backend frontend install seed ruff
 
 # Run backend (FastAPI :8000) and frontend (Next.js :3000) together.
-# Ctrl-C stops both.
+# Ctrl-C stops both. (Unix shells / Git Bash — on Windows use dev-win.)
 dev:
 	@trap 'kill 0' INT TERM EXIT; \
 	uv run fastapi dev & \
 	$(MAKE) frontend & \
 	wait
+
+# Windows (PowerShell/cmd): backend and frontend each in their own console
+# window, so both logs stay visible. Close a window (or Ctrl-C in it) to stop.
+# The start/quoting logic lives in dev-win.cmd — GnuWin32 make mangles quotes.
+dev-win:
+	cmd /c "$(subst /,\,$(CURDIR))\dev-win.cmd"
 
 backend:
 	uv run fastapi dev

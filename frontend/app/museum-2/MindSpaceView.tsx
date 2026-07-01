@@ -1,9 +1,11 @@
 "use client";
 
 // Museum of Mind — the walkable interface over the cognee graph
-// (docs/the-mind-space.md). Halls = categories, each memory is an exhibit on
-// a pedestal, lighting = urgency, orbit + click to fly in and read, selection
-// card with clickable cross-refs, scope toggle (content vs. full graph).
+// (docs/the-mind-space.md), staged as a bright daylight gallery: parquet
+// floor, cream walls, skylights, freestanding partition walls per category,
+// framed paintings as exhibits. Lighting = urgency (glow + size), orbit +
+// click to fly in and read, selection card with clickable cross-refs, scope
+// toggle (content vs. full graph).
 
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
@@ -26,17 +28,18 @@ type Selection = {
   neighbors: { id: string; name: string; kind: string; reason: string }[];
 };
 
-// Fixed colors for halls we know from the data; palette for the rest.
+// Fixed accents for halls we know from the data; palette for the rest.
 const HALL_COLORS: Record<string, string> = {
-  person: "#7dd3fc",
-  task: "#fbbf24",
-  event: "#f472b6",
-  family: "#86efac",
-  location: "#c4b5fd",
-  unsorted: "#9ca3af",
+  person: "#2d7fb8",
+  task: "#c07d10",
+  event: "#b8447a",
+  family: "#3d8f5f",
+  location: "#7a5fc0",
+  unsorted: "#6b7280",
   archive: "#64748b",
+  curator: "#8a6d2f",
 };
-const PALETTE = ["#fda4af", "#a5b4fc", "#6ee7b7", "#fcd34d", "#f0abfc", "#7dd3fc"];
+const PALETTE = ["#b85450", "#5060b8", "#3f9d7a", "#c09a20", "#a050b0", "#3585b5"];
 const SCAFFOLD_TYPES = new Set(["TextDocument", "DocumentChunk"]);
 
 const deadlineOf = (n: GraphNode): string | null =>
@@ -45,7 +48,7 @@ const deadlineOf = (n: GraphNode): string | null =>
 // ---------------------------------------------------------------------------
 // Hall assignment. The live graph often lacks Entity → EntityType edges, so
 // halls are inferred: type name in the label wins, then in the description,
-// then two rounds of adopt-the-majority-hall-of-your-neighbors, else Unsorted.
+// then adopt-the-hall-of-your-closest-kin, else Unsorted.
 // ---------------------------------------------------------------------------
 function assignHalls(nodes: GraphNode[], model: GraphModel): Map<string, string> {
   const typeNames = nodes
@@ -109,7 +112,7 @@ function assignHalls(nodes: GraphNode[], model: GraphModel): Map<string, string>
 }
 
 // Urgency in 0..1: deadline proximity (overdue/soonest = brightest), blended
-// with the model's priority score and connection count. Drives the lighting.
+// with the model's priority score and connection count. Drives glow and size.
 function urgencyScores(
   placed: GraphNode[],
   model: GraphModel,
@@ -136,7 +139,25 @@ function urgencyScores(
   return out;
 }
 
-// --- canvas texture helpers ------------------------------------------------
+// --- procedural texture helpers ---------------------------------------------
+function mulberry32(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a |= 0;
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function seedFrom(s: string): number {
+  return (
+    Math.abs(
+      s.split("").reduce((h, ch) => (Math.imul(h, 31) + ch.charCodeAt(0)) | 0, 7),
+    ) % 1_000_000
+  );
+}
+
 function canvasTexture(w: number, h: number, draw: (ctx: CanvasRenderingContext2D) => void) {
   const c = document.createElement("canvas");
   c.width = w;
@@ -147,51 +168,106 @@ function canvasTexture(w: number, h: number, draw: (ctx: CanvasRenderingContext2
   return tex;
 }
 
-function makeLabel(text: string): THREE.CanvasTexture {
-  return canvasTexture(512, 128, (ctx) => {
-    ctx.fillStyle = "rgba(10,11,15,0.85)";
-    ctx.beginPath();
-    ctx.roundRect(4, 20, 504, 88, 18);
-    ctx.fill();
-    ctx.fillStyle = "#e8eaf0";
-    ctx.font = "500 44px Georgia, serif";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    const t = text.length > 24 ? text.slice(0, 23) + "…" : text;
-    ctx.fillText(t, 256, 66);
+// old-master-ish artwork: dark ground, warm figures, per-node deterministic
+function makeArtwork(hex: string, seed: number): THREE.CanvasTexture {
+  return canvasTexture(512, 384, (ctx) => {
+    const W = 512;
+    const H = 384;
+    const rand = mulberry32(seed);
+    const col = new THREE.Color(hex);
+    const hsl = { h: 0, s: 0, l: 0 };
+    col.getHSL(hsl);
+
+    const g = ctx.createLinearGradient(0, 0, W * 0.3, H);
+    const bg = new THREE.Color().setHSL(hsl.h, 0.35, 0.13);
+    const bg2 = new THREE.Color().setHSL((hsl.h + 0.06) % 1, 0.3, 0.07);
+    g.addColorStop(0, `#${bg.getHexString()}`);
+    g.addColorStop(1, `#${bg2.getHexString()}`);
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+
+    ctx.globalCompositeOperation = "lighter";
+    for (let i = 0; i < 22; i++) {
+      const hue = (hsl.h + (rand() - 0.5) * 0.12 + 1) % 1;
+      const cc = new THREE.Color().setHSL(hue, 0.45 + rand() * 0.3, 0.3 + rand() * 0.3);
+      const x = rand() * W;
+      const y = H * 0.25 + rand() * H * 0.65;
+      const r = 20 + rand() * 110;
+      const rg = ctx.createRadialGradient(x, y, 0, x, y, r);
+      rg.addColorStop(0, `rgba(${(cc.r * 255) | 0},${(cc.g * 255) | 0},${(cc.b * 255) | 0},${0.16 + rand() * 0.24})`);
+      rg.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = rg;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    for (let i = 0; i < 5; i++) {
+      const cc = new THREE.Color().setHSL((hsl.h + (rand() - 0.5) * 0.08 + 1) % 1, 0.55, 0.55);
+      ctx.strokeStyle = `rgba(${(cc.r * 255) | 0},${(cc.g * 255) | 0},${(cc.b * 255) | 0},0.45)`;
+      ctx.lineWidth = 2 + rand() * 7;
+      ctx.beginPath();
+      ctx.moveTo(rand() * W, rand() * H);
+      ctx.bezierCurveTo(rand() * W, rand() * H, rand() * W, rand() * H, rand() * W, rand() * H);
+      ctx.stroke();
+    }
+    ctx.globalCompositeOperation = "source-over";
+
+    const vg = ctx.createRadialGradient(W / 2, H / 2, H * 0.3, W / 2, H / 2, H * 0.8);
+    vg.addColorStop(0, "rgba(0,0,0,0)");
+    vg.addColorStop(1, "rgba(0,0,0,0.5)");
+    ctx.fillStyle = vg;
+    ctx.fillRect(0, 0, W, H);
+  });
+}
+
+function makePlate(title: string, sub: string): THREE.CanvasTexture {
+  return canvasTexture(512, 256, (ctx) => {
+    ctx.fillStyle = "#efece5";
+    ctx.fillRect(0, 0, 512, 256);
+    ctx.strokeStyle = "#c9c4b8";
+    ctx.lineWidth = 4;
+    ctx.strokeRect(4, 4, 504, 248);
+    ctx.fillStyle = "#26241f";
+    ctx.font = "bold 44px Georgia, serif";
+    const t = title.length > 22 ? title.slice(0, 21) + "…" : title;
+    ctx.fillText(t, 28, 100);
+    ctx.fillStyle = "#7a756a";
+    ctx.font = "italic 32px Georgia, serif";
+    const s = sub.length > 30 ? sub.slice(0, 29) + "…" : sub;
+    ctx.fillText(s, 28, 170);
   });
 }
 
 function makeHallSign(name: string, count: number, hex: string): THREE.CanvasTexture {
   return canvasTexture(512, 160, (ctx) => {
-    ctx.fillStyle = "rgba(10,11,15,0.92)";
+    ctx.fillStyle = "rgba(250,248,243,0.96)";
     ctx.beginPath();
     ctx.roundRect(4, 4, 504, 152, 14);
     ctx.fill();
     ctx.strokeStyle = hex;
-    ctx.lineWidth = 5;
+    ctx.lineWidth = 6;
     ctx.stroke();
-    ctx.fillStyle = "#f1f3f8";
+    ctx.fillStyle = "#2b2820";
     ctx.font = "bold 58px Georgia, serif";
     ctx.textAlign = "center";
     ctx.fillText(name.toUpperCase(), 256, 78);
-    ctx.fillStyle = "#8a92a6";
+    ctx.fillStyle = "#8a8577";
     ctx.font = "30px Georgia, serif";
-    ctx.fillText(`${count} ${count === 1 ? "exhibit" : "exhibits"}`, 256, 126);
+    ctx.fillText(`${count} ${count === 1 ? "work" : "works"}`, 256, 126);
   });
 }
 
 function makePlaque(title: string, body: string): THREE.CanvasTexture {
   return canvasTexture(512, 640, (ctx) => {
-    ctx.fillStyle = "#101218";
+    ctx.fillStyle = "#f4f1ea";
     ctx.fillRect(0, 0, 512, 640);
-    ctx.strokeStyle = "#3a3f4d";
+    ctx.strokeStyle = "#cfc9bb";
     ctx.lineWidth = 3;
     ctx.strokeRect(14, 14, 484, 612);
-    ctx.fillStyle = "#c8b273";
+    ctx.fillStyle = "#8a6d2f";
     ctx.font = "bold 30px Georgia, serif";
     ctx.fillText(title, 36, 62);
-    ctx.fillStyle = "#c5ccd9";
+    ctx.fillStyle = "#3c3931";
     ctx.font = "24px Georgia, serif";
     // simple word wrap
     const words = body.split(/\s+/);
@@ -218,12 +294,45 @@ function makePlaque(title: string, body: string): THREE.CanvasTexture {
 function makeHaloTexture(): THREE.CanvasTexture {
   return canvasTexture(128, 128, (ctx) => {
     const g = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
-    g.addColorStop(0, "rgba(255,255,255,0.9)");
-    g.addColorStop(0.35, "rgba(255,255,255,0.25)");
-    g.addColorStop(1, "rgba(255,255,255,0)");
+    g.addColorStop(0, "rgba(255,220,150,0.9)");
+    g.addColorStop(0.4, "rgba(255,210,130,0.3)");
+    g.addColorStop(1, "rgba(255,200,120,0)");
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, 128, 128);
   });
+}
+
+function makeParquet(): THREE.CanvasTexture {
+  const tex = canvasTexture(256, 256, (ctx) => {
+    ctx.fillStyle = "#c1905c";
+    ctx.fillRect(0, 0, 256, 256);
+    const rand = mulberry32(1234);
+    // planks in alternating direction blocks
+    const B = 64;
+    for (let bx = 0; bx < 4; bx++) {
+      for (let by = 0; by < 4; by++) {
+        const horiz = (bx + by) % 2 === 0;
+        for (let s = 0; s < 4; s++) {
+          const shade = 0.88 + rand() * 0.22;
+          ctx.fillStyle = `rgb(${(0xc1 * shade) | 0},${(0x90 * shade) | 0},${(0x5c * shade) | 0})`;
+          if (horiz) ctx.fillRect(bx * B, by * B + s * 16, B - 1, 15);
+          else ctx.fillRect(bx * B + s * 16, by * B, 15, B - 1);
+        }
+      }
+    }
+    ctx.strokeStyle = "rgba(90,60,30,0.25)";
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= 4; i++) {
+      ctx.beginPath();
+      ctx.moveTo(i * 64, 0);
+      ctx.lineTo(i * 64, 256);
+      ctx.moveTo(0, i * 64);
+      ctx.lineTo(256, i * 64);
+      ctx.stroke();
+    }
+  });
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  return tex;
 }
 
 export default function MindSpaceView({ nodes, edges }: Props) {
@@ -249,7 +358,7 @@ export default function MindSpaceView({ nodes, edges }: Props) {
     const scaffold = nodes.filter((n) => SCAFFOLD_TYPES.has(n.type));
     if (scope === "all" && scaffold.length) hallNames.push("archive");
 
-    const halls = hallNames
+    let halls = hallNames
       .map((name, i) => ({
         name,
         color: HALL_COLORS[name] ?? PALETTE[i % PALETTE.length],
@@ -264,6 +373,16 @@ export default function MindSpaceView({ nodes, edges }: Props) {
     const urgency = urgencyScores(placed, model, Date.now());
     const summaries = nodes.filter((n) => n.type === "TextSummary");
 
+    // the heaviest memory hangs alone on the feature wall (the Night Watch spot)
+    const feature = [...entities].sort(
+      (a, b) => (urgency.get(String(b.id)) ?? 0) - (urgency.get(String(a.id)) ?? 0),
+    )[0];
+    if (feature) {
+      halls = halls
+        .map((h) => ({ ...h, members: h.members.filter((n) => n.id !== feature.id) }))
+        .filter((h) => h.members.length);
+    }
+
     // --- renderer / scene / camera ---
     let width = mount.clientWidth || 800;
     let height = mount.clientHeight || 600;
@@ -271,256 +390,282 @@ export default function MindSpaceView({ nodes, edges }: Props) {
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setSize(width, height);
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.08;
     mount.appendChild(renderer.domElement);
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x05060a);
-    scene.fog = new THREE.Fog(0x05060a, 60, 170);
+    scene.background = new THREE.Color(0xe9e2d3);
+    scene.fog = new THREE.Fog(0xe9e2d3, 80, 190);
 
-    const camera = new THREE.PerspectiveCamera(60, width / height, 0.1, 600);
-    camera.position.set(0, 30, 42);
+    // --- gallery dimensions ---
+    const SLOT = 3.4; // wall space per painting
+    const ROOM_W = 58;
+    const ROOM_D = 44;
+    const WALL_H = 8.5;
+
+    const camera = new THREE.PerspectiveCamera(55, width / height, 0.1, 600);
+    camera.position.set(0, 6.5, ROOM_D / 2 - 3);
 
     const controls = new OrbitControls(camera, renderer.domElement);
-    controls.target.set(0, 1.2, 0);
+    controls.target.set(0, 2, -8);
     controls.enableDamping = true;
     controls.dampingFactor = 0.08;
-    controls.minDistance = 3;
+    controls.minDistance = 2.5;
     controls.maxDistance = 90;
-    controls.maxPolarAngle = Math.PI / 2 - 0.04;
+    controls.maxPolarAngle = Math.PI / 2 - 0.02;
 
-    // --- lights ---
-    scene.add(new THREE.AmbientLight(0x8899bb, 0.55));
-    const moon = new THREE.DirectionalLight(0xbfd0ff, 0.75);
-    moon.position.set(18, 30, 10);
-    scene.add(moon);
+    // --- daylight ---
+    scene.add(new THREE.HemisphereLight(0xfff6e6, 0xc7a071, 0.95));
+    const sun = new THREE.DirectionalLight(0xffedd0, 1.15);
+    sun.position.set(12, 22, 6);
+    scene.add(sun);
+    const fill = new THREE.DirectionalLight(0xe8f0ff, 0.35);
+    fill.position.set(-14, 10, -8);
+    scene.add(fill);
 
     const disposables: { dispose(): void }[] = [];
     const exhibits: THREE.Mesh[] = [];
     const worldPos = new Map<string, THREE.Vector3>();
-    const gemById = new Map<string, THREE.Mesh>();
+    const worldNormal = new Map<string, THREE.Vector3>();
+    const paintingById = new Map<string, THREE.Mesh>();
+    const frameById = new Map<string, THREE.Mesh>();
 
-    // --- night sky ---
+    const sharedQuad = new THREE.PlaneGeometry(1, 1);
+    disposables.push(sharedQuad);
+
+    // --- room shell ---
+    const wallMat = new THREE.MeshStandardMaterial({ color: 0xf0e9da, roughness: 1 });
+    disposables.push(wallMat);
     {
-      const starGeo = new THREE.BufferGeometry();
-      const pts: number[] = [];
-      for (let i = 0; i < 700; i++) {
-        const v = new THREE.Vector3()
-          .randomDirection()
-          .multiplyScalar(220 + Math.random() * 60);
-        v.y = Math.abs(v.y) + 8;
-        pts.push(v.x, v.y, v.z);
+      const parquet = makeParquet();
+      parquet.repeat.set(ROOM_W / 6, ROOM_D / 6);
+      const fg = new THREE.PlaneGeometry(ROOM_W, ROOM_D);
+      const fm = new THREE.MeshStandardMaterial({ map: parquet, roughness: 0.55, metalness: 0.05 });
+      const floor = new THREE.Mesh(fg, fm);
+      floor.rotation.x = -Math.PI / 2;
+      scene.add(floor);
+      disposables.push(parquet, fg, fm);
+
+      const mkWall = (w: number, pos: THREE.Vector3, roty: number) => {
+        const g = new THREE.PlaneGeometry(w, WALL_H);
+        const m = new THREE.Mesh(g, wallMat);
+        m.position.copy(pos);
+        m.rotation.y = roty;
+        scene.add(m);
+        disposables.push(g);
+      };
+      mkWall(ROOM_W, new THREE.Vector3(0, WALL_H / 2, -ROOM_D / 2), 0);
+      mkWall(ROOM_W, new THREE.Vector3(0, WALL_H / 2, ROOM_D / 2), Math.PI);
+      mkWall(ROOM_D, new THREE.Vector3(-ROOM_W / 2, WALL_H / 2, 0), Math.PI / 2);
+      mkWall(ROOM_D, new THREE.Vector3(ROOM_W / 2, WALL_H / 2, 0), -Math.PI / 2);
+
+      // clerestory windows along the right wall top
+      const skyMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+      disposables.push(skyMat);
+      for (let i = 0; i < 5; i++) {
+        const g = new THREE.PlaneGeometry(5.4, 1.6);
+        const win = new THREE.Mesh(g, skyMat);
+        win.position.set(ROOM_W / 2 - 0.05, WALL_H - 1.3, -ROOM_D / 2 + 8 + i * 8);
+        win.rotation.y = -Math.PI / 2;
+        scene.add(win);
+        disposables.push(g);
       }
-      starGeo.setAttribute("position", new THREE.Float32BufferAttribute(pts, 3));
-      const starMat = new THREE.PointsMaterial({ color: 0xaabbdd, size: 0.7, sizeAttenuation: true });
-      scene.add(new THREE.Points(starGeo, starMat));
-      disposables.push(starGeo, starMat);
-    }
-
-    // --- ground ---
-    {
-      const g = new THREE.CircleGeometry(140, 48);
-      const m = new THREE.MeshStandardMaterial({ color: 0x0a0c12, roughness: 1 });
-      const ground = new THREE.Mesh(g, m);
-      ground.rotation.x = -Math.PI / 2;
-      ground.position.y = -0.02;
-      scene.add(ground);
-      disposables.push(g, m);
     }
 
     const haloTex = makeHaloTexture();
     disposables.push(haloTex);
+    const partMat = new THREE.MeshStandardMaterial({ color: 0x4c3f2e, roughness: 0.9 });
+    const frameGeo = new THREE.BoxGeometry(1, 1, 0.07);
+    disposables.push(partMat, frameGeo);
 
-    // --- atrium: curator monolith with TextSummary wall plaques ---
-    const ATRIUM_R = 9;
-    {
-      const g = new THREE.CircleGeometry(ATRIUM_R, 40);
-      const m = new THREE.MeshStandardMaterial({ color: 0x171a22, roughness: 0.9 });
-      const floor = new THREE.Mesh(g, m);
-      floor.rotation.x = -Math.PI / 2;
-      scene.add(floor);
-      disposables.push(g, m);
+    // --- hang one painting ---
+    function hang(n: GraphNode, pos: THREE.Vector3, normal: THREE.Vector3, big = false) {
+      const id = String(n.id);
+      const heat = urgency.get(id) ?? 0.3;
+      const hall = SCAFFOLD_TYPES.has(n.type) ? "archive" : hallOf.get(id) ?? "unsorted";
+      const hex = HALL_COLORS[hall] ?? "#6b7280";
+      const s = big ? 2.6 : 0.8 + heat * 0.5;
+      const w = 2.2 * s;
+      const h = 1.6 * s;
+      const roty = Math.atan2(normal.x, normal.z);
 
-      const monoG = new THREE.BoxGeometry(2.6, 3.4, 2.6);
-      const monoM = new THREE.MeshStandardMaterial({ color: 0x1c202b, roughness: 0.6, metalness: 0.3 });
-      const mono = new THREE.Mesh(monoG, monoM);
-      mono.position.y = 1.7;
-      scene.add(mono);
-      disposables.push(monoG, monoM);
-
-      const plaques = [
-        { title: "Museum of Mind", body: "The graph is the memory. This space is the interface. Walk toward the light to see what needs you now." },
-        ...summaries.map((s, i) => ({ title: `Curator note ${i + 1}`, body: descOf(s) || s.label })),
-      ].slice(0, 4);
-      const quad = new THREE.PlaneGeometry(2.2, 2.75);
-      disposables.push(quad);
-      plaques.forEach((p, i) => {
-        const tex = makePlaque(p.title, p.body);
-        const mat = new THREE.MeshBasicMaterial({ map: tex });
-        const panel = new THREE.Mesh(quad, mat);
-        const ang = (i / 4) * Math.PI * 2;
-        panel.position.set(Math.sin(ang) * 1.32, 1.75, Math.cos(ang) * 1.32);
-        panel.rotation.y = ang;
-        scene.add(panel);
-        disposables.push(tex, mat);
+      // urgency glow behind the frame — lighting = what needs you now
+      const glowMat = new THREE.SpriteMaterial({
+        map: haloTex,
+        transparent: true,
+        opacity: 0.1 + heat * 0.5,
+        depthWrite: false,
       });
+      const glow = new THREE.Sprite(glowMat);
+      glow.scale.setScalar(w * 1.9 + heat * 1.5);
+      glow.position.copy(pos).addScaledVector(normal, 0.04);
+      scene.add(glow);
+      disposables.push(glowMat);
 
-      const pl = new THREE.PointLight(0xfff2cc, 1.1, 26, 1.8);
-      pl.position.set(0, 5, 0);
-      scene.add(pl);
+      const frame = new THREE.Mesh(frameGeo, partMat.clone());
+      (frame.material as THREE.MeshStandardMaterial).color.set(0x2e2a24);
+      frame.scale.set(w + 0.16, h + 0.16, 1);
+      frame.position.copy(pos).addScaledVector(normal, 0.045);
+      frame.rotation.y = roty;
+      scene.add(frame);
+      disposables.push(frame.material as THREE.Material);
+      frameById.set(id, frame);
+
+      const art = makeArtwork(hex, seedFrom(id));
+      const artMat = new THREE.MeshBasicMaterial({ map: art });
+      const painting = new THREE.Mesh(sharedQuad, artMat);
+      painting.scale.set(w, h, 1);
+      painting.position.copy(pos).addScaledVector(normal, 0.09);
+      painting.rotation.y = roty;
+      painting.userData = { nodeId: id, baseScale: painting.scale.clone() };
+      scene.add(painting);
+      disposables.push(art, artMat);
+      exhibits.push(painting);
+      paintingById.set(id, painting);
+      worldPos.set(id, painting.position.clone());
+      worldNormal.set(id, normal.clone());
+
+      // museum label beside the painting
+      const plate = makePlate(displayName(n), deadlineOf(n) ? `due ${deadlineOf(n)}` : n.type);
+      const plMat = new THREE.MeshBasicMaterial({ map: plate });
+      const plaque = new THREE.Mesh(sharedQuad, plMat);
+      plaque.scale.set(big ? 0.9 : 0.62, big ? 0.45 : 0.31, 1);
+      const side = new THREE.Vector3(normal.z, 0, -normal.x); // right of the painting
+      plaque.position
+        .copy(pos)
+        .addScaledVector(normal, 0.05)
+        .addScaledVector(side, w / 2 + (big ? 0.75 : 0.4));
+      plaque.position.y = big ? 1.9 : 1.5;
+      plaque.rotation.y = roty;
+      scene.add(plaque);
+      disposables.push(plate, plMat);
     }
 
-    // --- halls ---
-    const sharedQuad = new THREE.PlaneGeometry(1, 1);
-    const gemGeo = new THREE.IcosahedronGeometry(0.5, 0);
-    const crateGeo = new THREE.BoxGeometry(0.9, 0.9, 0.9);
-    const colGeo = new THREE.CylinderGeometry(0.22, 0.28, 4.2, 10);
-    const colMat = new THREE.MeshStandardMaterial({ color: 0x232733, roughness: 0.85 });
-    disposables.push(sharedQuad, gemGeo, crateGeo, colGeo, colMat);
-
-    const GOLDEN = Math.PI * (3 - Math.sqrt(5));
-
-    halls.forEach((hall, hi) => {
-      const ang = (hi / halls.length) * Math.PI * 2;
-      const hallR = Math.max(4, 1.9 * Math.sqrt(hall.members.length) + 2.2);
-      const dist = ATRIUM_R + hallR + 7;
-      const cx = Math.sin(ang) * dist;
-      const cz = Math.cos(ang) * dist;
-      const color = new THREE.Color(hall.color);
-
-      // tinted floor disc
-      const fg = new THREE.CircleGeometry(hallR, 36);
-      const fm = new THREE.MeshStandardMaterial({
-        color: color.clone().multiplyScalar(0.14),
-        roughness: 0.95,
-      });
-      const floor = new THREE.Mesh(fg, fm);
-      floor.rotation.x = -Math.PI / 2;
-      floor.position.set(cx, 0.01, cz);
-      scene.add(floor);
-      disposables.push(fg, fm);
-
-      // perimeter columns, leaving a doorway toward the atrium
-      const nCols = 9;
-      for (let c = 0; c < nCols; c++) {
-        const ca = (c / nCols) * Math.PI * 2;
-        // doorway faces the atrium (direction -ang from hall center)
-        const doorAng = Math.atan2(-cx, -cz);
-        let diff = ca - doorAng;
-        diff = Math.atan2(Math.sin(diff), Math.cos(diff));
-        if (Math.abs(diff) < 0.45) continue;
-        const col = new THREE.Mesh(colGeo, colMat);
-        col.position.set(cx + Math.sin(ca) * hallR, 2.1, cz + Math.cos(ca) * hallR);
-        scene.add(col);
-      }
-
-      // hall sign floating above the doorway (sprite: always readable)
-      const signTex = makeHallSign(hall.name, hall.members.length, hall.color);
-      const signMat = new THREE.SpriteMaterial({ map: signTex, transparent: true, depthWrite: false });
-      const sign = new THREE.Sprite(signMat);
-      sign.scale.set(4.4, 1.35, 1);
-      const toAtrium = new THREE.Vector3(-cx, 0, -cz).normalize();
-      sign.position.set(cx + toAtrium.x * hallR, 4.6, cz + toAtrium.z * hallR);
-      scene.add(sign);
-      disposables.push(signTex, signMat);
-
-      // hall light
-      const hl = new THREE.PointLight(color, 1.4, hallR * 3.6, 1.7);
-      hl.position.set(cx, 4.5, cz);
-      scene.add(hl);
-
-      // exhibits on a sunflower spiral
-      hall.members.forEach((n, i) => {
-        const id = String(n.id);
-        const r = 1.35 * Math.sqrt(i + 0.6);
-        const a = i * GOLDEN + ang;
-        const px = cx + Math.sin(a) * r;
-        const pz = cz + Math.cos(a) * r;
-        const heat = urgency.get(id) ?? 0.3;
-        const pedH = 0.75 + heat * 1.1;
-
-        const pedG = new THREE.CylinderGeometry(0.42, 0.52, pedH, 18);
-        const pedM = new THREE.MeshStandardMaterial({ color: 0x272b36, roughness: 0.8 });
-        const ped = new THREE.Mesh(pedG, pedM);
-        ped.position.set(px, pedH / 2, pz);
-        scene.add(ped);
-        disposables.push(pedG, pedM);
-
-        const isCrate = SCAFFOLD_TYPES.has(n.type);
-        const mat = new THREE.MeshStandardMaterial({
-          color,
-          emissive: color,
-          // lighting = urgency: what needs you now glows, the rest sits in shadow
-          emissiveIntensity: 0.12 + heat * 1.15,
-          roughness: 0.3,
-          metalness: 0.5,
-          flatShading: true,
-        });
-        const gem = new THREE.Mesh(isCrate ? crateGeo : gemGeo, mat);
-        gem.position.set(px, pedH + 0.55, pz);
-        gem.userData = { nodeId: id, spin: 0.004 + heat * 0.012, baseEmissive: mat.emissiveIntensity };
-        scene.add(gem);
-        disposables.push(mat);
-        exhibits.push(gem);
-        gemById.set(id, gem);
-        worldPos.set(id, gem.position.clone());
-
-        // urgency halo
-        const spriteMat = new THREE.SpriteMaterial({
-          map: haloTex,
-          color,
-          transparent: true,
-          opacity: 0.08 + heat * 0.55,
-          blending: THREE.AdditiveBlending,
-          depthWrite: false,
-        });
-        const halo = new THREE.Sprite(spriteMat);
-        halo.scale.setScalar(1.6 + heat * 2.6);
-        halo.position.copy(gem.position);
-        scene.add(halo);
-        disposables.push(spriteMat);
-
-        // nameplate sprite
-        const labelTex = makeLabel(displayName(n));
-        const labelMat = new THREE.SpriteMaterial({ map: labelTex, transparent: true, depthWrite: false });
-        const label = new THREE.Sprite(labelMat);
-        label.scale.set(2.6, 0.65, 1);
-        label.position.set(px, pedH + 1.55, pz);
-        scene.add(label);
-        disposables.push(labelTex, labelMat);
-      });
-    });
-
-    // --- threads: structural connections between placed exhibits ---
+    // --- halls as wall runs: brown panels mounted on the perimeter walls ---
+    const FWD = new THREE.Vector3(0, 0, 1);
     {
-      const pts: number[] = [];
-      const seen = new Set<string>();
-      for (const [idA, conns] of model.adjacency) {
-        const pa = worldPos.get(idA);
-        if (!pa) continue;
-        for (const c of conns) {
-          if (c.kind !== "structural") continue;
-          const key = idA < c.id ? `${idA}|${c.id}` : `${c.id}|${idA}`;
-          if (seen.has(key)) continue;
-          seen.add(key);
-          const pb = worldPos.get(c.id);
-          if (!pb) continue;
-          pts.push(pa.x, pa.y, pa.z, pb.x, pb.y, pb.z);
+      const M = 3; // corner margin
+      // walk order: back-left, back-right, right wall, left wall, front wall.
+      // The back wall center (±7.5) is reserved for the feature painting; the
+      // front-left corner is reserved for the curator plaques.
+      const segs = [
+        { start: new THREE.Vector3(-ROOM_W / 2 + M, 0, -ROOM_D / 2), dir: new THREE.Vector3(1, 0, 0), normal: FWD.clone(), len: ROOM_W / 2 - 7.5 - M },
+        { start: new THREE.Vector3(7.5, 0, -ROOM_D / 2), dir: new THREE.Vector3(1, 0, 0), normal: FWD.clone(), len: ROOM_W / 2 - 7.5 - M },
+        { start: new THREE.Vector3(ROOM_W / 2, 0, -ROOM_D / 2 + M), dir: new THREE.Vector3(0, 0, 1), normal: new THREE.Vector3(-1, 0, 0), len: ROOM_D - 2 * M },
+        { start: new THREE.Vector3(-ROOM_W / 2, 0, ROOM_D / 2 - M), dir: new THREE.Vector3(0, 0, -1), normal: new THREE.Vector3(1, 0, 0), len: ROOM_D - 2 * M },
+        { start: new THREE.Vector3(ROOM_W / 2 - M, 0, ROOM_D / 2), dir: new THREE.Vector3(-1, 0, 0), normal: new THREE.Vector3(0, 0, -1), len: ROOM_W / 2 - M + 4 },
+      ];
+      let si = 0;
+      let offset = 0;
+
+      for (const hall of halls) {
+        let remaining = [...hall.members];
+        let firstChunk = true;
+        while (remaining.length) {
+          // advance to a segment with room for at least one painting
+          while (si < segs.length && segs[si].len - offset < SLOT + 1.4) {
+            si++;
+            offset = 0;
+          }
+          if (si >= segs.length) break; // out of wall — shouldn't happen at this scale
+          const seg = segs[si];
+          const fit = Math.min(
+            remaining.length,
+            Math.floor((seg.len - offset - 1.4) / SLOT),
+          );
+          const chunk = remaining.slice(0, fit);
+          remaining = remaining.slice(fit);
+          const panelW = chunk.length * SLOT + 1.4;
+          const centerT = offset + panelW / 2;
+          const center = seg.start.clone().addScaledVector(seg.dir, centerT);
+
+          const g = new THREE.BoxGeometry(panelW, 4.3, 0.2);
+          const panel = new THREE.Mesh(g, partMat);
+          panel.position.set(center.x, 2.15, center.z);
+          panel.position.addScaledVector(seg.normal, 0.12);
+          panel.rotation.y = Math.atan2(seg.normal.x, seg.normal.z);
+          scene.add(panel);
+          disposables.push(g);
+
+          if (firstChunk) {
+            const signTex = makeHallSign(hall.name, hall.members.length, hall.color);
+            const signMat = new THREE.SpriteMaterial({ map: signTex, transparent: true, depthWrite: false });
+            const sign = new THREE.Sprite(signMat);
+            sign.scale.set(3.4, 1.05, 1);
+            sign.position.set(center.x, 5.05, center.z);
+            sign.position.addScaledVector(seg.normal, 0.4);
+            scene.add(sign);
+            disposables.push(signTex, signMat);
+            firstChunk = false;
+          }
+
+          chunk.forEach((n, i) => {
+            const t = offset + 0.7 + SLOT / 2 + i * SLOT;
+            const pos = seg.start.clone().addScaledVector(seg.dir, t);
+            pos.y = 2.3;
+            pos.addScaledVector(seg.normal, 0.55);
+            hang(n, pos, seg.normal);
+          });
+          offset += panelW + 2.2;
         }
       }
-      if (pts.length) {
-        const lg = new THREE.BufferGeometry();
-        lg.setAttribute("position", new THREE.Float32BufferAttribute(pts, 3));
-        const lm = new THREE.LineBasicMaterial({
-          color: 0x8899ff,
-          transparent: true,
-          opacity: 0.28,
-          blending: THREE.AdditiveBlending,
-          depthWrite: false,
-        });
-        scene.add(new THREE.LineSegments(lg, lm));
-        disposables.push(lg, lm);
-      }
     }
+
+    // --- feature wall: the heaviest memory, Night-Watch sized ---
+    if (feature) {
+      const bg = new THREE.BoxGeometry(11, 5.8, 0.3);
+      const back = new THREE.Mesh(bg, partMat);
+      back.position.set(0, 2.9, -ROOM_D / 2 + 0.4);
+      scene.add(back);
+      disposables.push(bg);
+      hang(feature, new THREE.Vector3(0, 2.9, -ROOM_D / 2 + 0.9), FWD, true);
+
+      // bench in front
+      const benchMat = new THREE.MeshStandardMaterial({ color: 0x99522b, roughness: 0.6 });
+      const topG = new THREE.BoxGeometry(3.4, 0.1, 0.55);
+      const top = new THREE.Mesh(topG, benchMat);
+      top.position.set(0, 0.46, -ROOM_D / 2 + 5.2);
+      scene.add(top);
+      const legG = new THREE.BoxGeometry(0.09, 0.42, 0.5);
+      for (const lx of [-1.5, 1.5]) {
+        const leg = new THREE.Mesh(legG, benchMat);
+        leg.position.set(lx, 0.21, -ROOM_D / 2 + 5.2);
+        scene.add(leg);
+      }
+      disposables.push(benchMat, topG, legG);
+
+      // a couple of quiet visitors
+      const figMat = new THREE.MeshStandardMaterial({ color: 0x3c3c40, roughness: 0.9 });
+      const figG = new THREE.CapsuleGeometry(0.26, 1.15, 3, 10);
+      for (const [fx, fz] of [
+        [1.1, -ROOM_D / 2 + 3.4],
+        [ROOM_W / 2 - 6, -ROOM_D / 2 + 9],
+      ]) {
+        const fig = new THREE.Mesh(figG, figMat);
+        fig.position.set(fx, 0.85, fz);
+        scene.add(fig);
+      }
+      disposables.push(figMat, figG);
+    }
+
+    // --- curator plaques (TextSummary) on the front wall, left of the entry ---
+    // clickable like the paintings: fly in and read the full note in the card
+    summaries.slice(0, 4).forEach((s, i) => {
+      const id = String(s.id);
+      const tex = makePlaque(`Curator note ${i + 1}`, descOf(s) || s.label);
+      const m = new THREE.MeshBasicMaterial({ map: tex });
+      const panel = new THREE.Mesh(sharedQuad, m);
+      panel.scale.set(1.7, 2.12, 1);
+      panel.position.set(-8 - i * 4, 2.5, ROOM_D / 2 - 0.3);
+      panel.rotation.y = Math.PI;
+      panel.userData = { nodeId: id, baseScale: panel.scale.clone() };
+      scene.add(panel);
+      disposables.push(tex, m);
+      exhibits.push(panel);
+      paintingById.set(id, panel);
+      worldPos.set(id, panel.position.clone());
+      worldNormal.set(id, new THREE.Vector3(0, 0, -1));
+    });
 
     // highlight lines for the selected exhibit (rebuilt per selection)
     let selLines: THREE.LineSegments | null = null;
@@ -544,11 +689,9 @@ export default function MindSpaceView({ nodes, edges }: Props) {
       const lg = new THREE.BufferGeometry();
       lg.setAttribute("position", new THREE.Float32BufferAttribute(pts, 3));
       const lm = new THREE.LineBasicMaterial({
-        color: 0xff6677,
+        color: 0xb0242f,
         transparent: true,
-        opacity: 0.85,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
+        opacity: 0.8,
       });
       selLines = new THREE.LineSegments(lg, lm);
       scene.add(selLines);
@@ -556,17 +699,18 @@ export default function MindSpaceView({ nodes, edges }: Props) {
 
     // --- camera fly-to ---
     let goal: { pos: THREE.Vector3; target: THREE.Vector3 } | null = null;
-    const OVERVIEW = { pos: new THREE.Vector3(0, 30, 42), target: new THREE.Vector3(0, 1.2, 0) };
+    const OVERVIEW = {
+      pos: new THREE.Vector3(0, 6.5, ROOM_D / 2 - 3),
+      target: new THREE.Vector3(0, 2, -8),
+    };
 
     function flyTo(id: string) {
       const p = worldPos.get(id);
-      if (!p) return;
-      const dir = camera.position.clone().sub(p);
-      dir.y = 0;
-      if (dir.lengthSq() < 0.01) dir.set(0, 0, 1);
-      dir.normalize().multiplyScalar(5.5);
+      const n = worldNormal.get(id);
+      if (!p || !n) return;
+      const dist = paintingById.get(id)?.userData.baseScale.x > 4 ? 7.5 : 4.6;
       goal = {
-        pos: new THREE.Vector3(p.x + dir.x, Math.max(2.6, p.y + 1.4), p.z + dir.z),
+        pos: new THREE.Vector3().copy(p).addScaledVector(n, dist).setY(Math.max(2, p.y - 0.2)),
         target: p.clone(),
       };
     }
@@ -578,7 +722,12 @@ export default function MindSpaceView({ nodes, edges }: Props) {
         id,
         name: displayName(n),
         type: n.type,
-        hall: SCAFFOLD_TYPES.has(n.type) ? "archive" : hallOf.get(id) ?? "unsorted",
+        hall:
+          n.type === "TextSummary"
+            ? "curator"
+            : SCAFFOLD_TYPES.has(n.type)
+              ? "archive"
+              : hallOf.get(id) ?? "unsorted",
         desc: descOf(n),
         deadline: deadlineOf(n),
         neighbors: (model.adjacency.get(id) ?? [])
@@ -593,22 +742,17 @@ export default function MindSpaceView({ nodes, edges }: Props) {
       };
     }
 
-    let selectedGem: THREE.Mesh | null = null;
+    let selectedId: string | null = null;
     function applySelect(id: string | null) {
-      if (selectedGem) {
-        const m = selectedGem.material as THREE.MeshStandardMaterial;
-        m.emissiveIntensity = selectedGem.userData.baseEmissive as number;
-        selectedGem.scale.setScalar(1);
-        selectedGem = null;
+      if (selectedId) {
+        const f = frameById.get(selectedId);
+        if (f) (f.material as THREE.MeshStandardMaterial).color.set(0x2e2a24);
       }
+      selectedId = id;
       showSelLinks(id);
       if (id) {
-        const gem = gemById.get(id);
-        if (gem) {
-          selectedGem = gem;
-          (gem.material as THREE.MeshStandardMaterial).emissiveIntensity = 1.6;
-          gem.scale.setScalar(1.3);
-        }
+        const f = frameById.get(id);
+        if (f) (f.material as THREE.MeshStandardMaterial).color.set(0xc9a227);
         flyTo(id);
         setSel(nodeToSelection(id));
       } else {
@@ -641,19 +785,22 @@ export default function MindSpaceView({ nodes, edges }: Props) {
     }
 
     const onMove = (ev: PointerEvent) => {
-      const gem = pick(ev);
-      if (gem !== hovered) {
-        if (hovered && hovered !== selectedGem) {
-          (hovered.material as THREE.MeshStandardMaterial).emissiveIntensity =
-            hovered.userData.baseEmissive as number;
+      const painting = pick(ev);
+      if (painting !== hovered) {
+        if (hovered) {
+          hovered.scale.copy(hovered.userData.baseScale as THREE.Vector3);
         }
-        hovered = gem;
-        if (gem && gem !== selectedGem) {
-          (gem.material as THREE.MeshStandardMaterial).emissiveIntensity = 1.2;
+        hovered = painting;
+        if (painting) {
+          painting.scale
+            .copy(painting.userData.baseScale as THREE.Vector3)
+            .multiplyScalar(1.045);
         }
-        renderer.domElement.style.cursor = gem ? "pointer" : "grab";
+        renderer.domElement.style.cursor = painting ? "pointer" : "grab";
         setHover(
-          gem ? displayName(model.nodeById.get(gem.userData.nodeId as string)!) : null,
+          painting
+            ? displayName(model.nodeById.get(painting.userData.nodeId as string)!)
+            : null,
         );
       }
     };
@@ -665,8 +812,8 @@ export default function MindSpaceView({ nodes, edges }: Props) {
       const moved = Math.hypot(ev.clientX - downAt.x, ev.clientY - downAt.y);
       downAt = null;
       if (moved > 5) return; // it was a drag, not a click
-      const gem = pick(ev);
-      applySelect(gem ? (gem.userData.nodeId as string) : null);
+      const painting = pick(ev);
+      applySelect(painting ? (painting.userData.nodeId as string) : null);
     };
     renderer.domElement.addEventListener("pointermove", onMove);
     renderer.domElement.addEventListener("pointerdown", onDown);
@@ -683,7 +830,6 @@ export default function MindSpaceView({ nodes, edges }: Props) {
         controls.target.lerp(goal.target, k);
         if (camera.position.distanceTo(goal.pos) < 0.08) goal = null;
       }
-      for (const g of exhibits) g.rotation.y += g.userData.spin as number;
       controls.update();
       renderer.render(scene, camera);
       raf = requestAnimationFrame(animate);
@@ -741,7 +887,7 @@ export default function MindSpaceView({ nodes, edges }: Props) {
 
       {/* help line */}
       <div className={styles.help}>
-        drag to orbit · scroll to zoom · click an exhibit to fly in — the bright
+        drag to orbit · scroll to zoom · click a painting to fly in — the glowing
         ones need you now
       </div>
 
