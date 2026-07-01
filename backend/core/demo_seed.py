@@ -50,7 +50,9 @@ def _member_sentences(data: dict) -> list[str]:
             f"{home.get('state', '')}, {home.get('country', '')}."
         )
     for m in fam.get("members") or []:
-        parts = [f"{m.get('name', '')} is the {m.get('role', '')} in the {fam_name} family"]
+        parts = [
+            f"{m.get('name', '')} is the {m.get('role', '')} in the {fam_name} family"
+        ]
         if m.get("date_of_birth"):
             parts.append(f"born {m['date_of_birth']}")
         if m.get("age") is not None:
@@ -95,7 +97,7 @@ def _channel_sentences(data: dict) -> list[str]:
         out.append(
             f"Input channel '{c.get('label', '')}' is a {c.get('type', '')} channel "
             f"from {c.get('provider', '')}. Example input: "
-            f"\"{c.get('example_input', '')}\"."
+            f'"{c.get("example_input", "")}".'
         )
     return out
 
