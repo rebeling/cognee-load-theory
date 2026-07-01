@@ -36,6 +36,33 @@ class MemoryStore(ABC):
         """Return the knowledge graph (nodes + edges)."""
 
 
+class CogneeStore(MemoryStore):
+    """Interface for a Cognee-backed store (cloud REST or local in-process lib).
+
+    Extends `MemoryStore` with the Cognee-specific capabilities that
+    transport-agnostic prep logic (e.g. `demo_seed`) depends on. Both backends
+    — `CogneeCloudStore` (httpx) and `CogneeLocalStore` (cognee lib) — implement
+    this identically, so `seed_demo(store)` and routes never branch on backend.
+    """
+
+    @property
+    @abstractmethod
+    def dataset(self) -> str:
+        """Name of the dataset all text is grouped under."""
+
+    @abstractmethod
+    def upload_ontology(
+        self, key: str, owl_bytes: bytes, description: str | None = None
+    ) -> str:
+        """Register an OWL ontology under `key` (idempotent). Returns the key."""
+
+    @abstractmethod
+    def remember_file(
+        self, content: bytes, filename: str, ontology_key: str | None = None
+    ) -> dict:
+        """Ingest a file and build the graph, grounded on an ontology by key."""
+
+
 class InMemoryStore(MemoryStore):
     def __init__(self) -> None:
         self._items: list[MemoryItem] = []
@@ -71,13 +98,34 @@ class InMemoryStore(MemoryStore):
 
 
 def _build_store() -> MemoryStore:
-    if settings.cognee_enabled:
-        # Imported lazily so the in-memory path has no httpx/Cognee dependency.
-        from backend.core.cognee_store import CogneeStore
+    # Backends imported lazily so the in-memory path pulls in neither httpx nor
+    # the cognee library.
+    if settings.cognee_mode == "local":
+        from backend.core.cognee_local_store import CogneeLocalStore
 
-        return CogneeStore()
+        return CogneeLocalStore()
+    if settings.cognee_enabled:
+        from backend.core.cognee_store import CogneeCloudStore
+
+        return CogneeCloudStore()
     return InMemoryStore()
 
 
-# Active store, selected once at import. Cognee when configured, else in-memory.
-store: MemoryStore = _build_store()
+def __getattr__(name: str) -> object:
+    """Lazily build the active store on first access to ``store``.
+
+    Deferring construction (rather than building at import time) avoids a
+    circular import: the concrete backends import ``CogneeStore`` from this
+    module, so eagerly constructing one here while this module is still
+    initializing would re-enter a partially-defined module.
+    """
+    if name == "store":
+        global store
+        store = _build_store()
+        return store
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+# Active store, selected on first access. COGNEE_MODE=local uses the in-process
+# cognee lib; else cloud REST when configured; else the in-memory stub.
+store: MemoryStore
